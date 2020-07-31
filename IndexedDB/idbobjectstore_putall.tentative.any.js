@@ -12,8 +12,8 @@ promise_test(async testCase => {
     {isbn: 'three', title: 'title3'}
   ];
   let putAllRequest = objectStore.putAll(values);
-  await promiseForRequest(testCase, putAllRequest);
-  await promiseForTransaction(testCase, txn);
+  await Promise.all(promiseForRequest(testCase, putAllRequest),
+                    promiseForTransaction(testCase, txn));
 
   const txn2 = db.transaction(['books'], 'readonly');
   const objectStore2 = txn2.objectStore('books');
