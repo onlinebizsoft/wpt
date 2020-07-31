@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<meta charset=utf-8>
+<title>Setting the start time of scroll animation</title>
+<link rel="help"
+      href="https://drafts.csswg.org/web-animations/#setting-the-timeline">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="/web-animations/testcommon.js"></script>
+<script src="testcommon.js"></script>
+<style>
+  .scroller {
+    overflow: auto;
+    height: 200px;
+    width: 100px;
+    will-change: transform;
+  }
+  .contents {
+    /* The height is set to align scrolling in pixels with logical time in ms */
+    height: 1200px;
+    width: 100%;
+  }
+</style>
+<body>
+<script>
+'use strict';
+
+function createAnimation(t) {
+  const elem = createDiv(t);
+  const animation = elem.animate({ opacity: [1, 0] }, 1000);
+  return animation;
+}
+
+function updateScrollPosition(timeline, offset) {
+  const scroller = timeline.scrollSource;
+  assert_true(!!scroller, 'scrollSource is resolved');
+  scroller.scrollTop = offset;
+  // Wait for new animation frame which allows the timeline to compute new
+  // current time.
+  return waitForNextFrame();
+}
+
+function assert_scroll_synced_times(animation, timeline_current_time,
+                                    animation_current_time) {
+  assert_times_equal(animation.timeline.currentTime, timeline_current_time,
+                     'Timeline\'s currentTime aligns with the scroll ' +
+                     'position');
+  assert_times_equal(animation.currentTime, animation_current_time,
+                     'Animation\'s currentTime aligns with the scroll ' +
+                     'position');
+}
+
+function assert_paused_times(animation, timeline_current_time,
+                             animation_current_time) {
+  assert_times_equal(animation.timeline.currentTime, timeline_current_time,
+                     'Timeline\'s currentTime aligns with the scroll ' +
+                     'position even when paused');
+  assert_times_equal(animation.currentTime, animation_current_time,
+                     'Animation\'s currentTime is fixed while paused');
+}
+
+promise_test(async t => {
+  const scrollTimeline = createScrollTimeline(t);
+  return updateScrollPosition(scrollTimeline, 100).then(() => {
+    const animation = createAnimation(t);
+    animation.timeline = scrollTimeline;
+    assert_true(animation.pending);
+    return animation.ready.then(() => {
+      assert_equals(animation.playState, 'running');
+      assert_scroll_synced_times(animation, 100, 100);
+    });
+  });
+},  'Setting a scroll timeline on a play-pending animation synchronizes ' +
+    'currentTime of the animation with the scroll position.');
+
+promise_test(async t => {
+  const scrollTimeline = createScrollTimeline(t);
+  return updateScrollPosition(scrollTimeline, 100).then(() => {
+    const animation = createAnimation(t);
+    animation.pause();
+    animation.timeline = scrollTimeline;
+    assert_true(animation.pending);
+    return animation.ready.then(() => {
+      assert_equals(animation.playState, 'paused');
+      assert_paused_times(animation, 100, 100);
+      return updateScrollPosition(animation.timeline, 200).then(() => {
+        assert_equals(animation.playState, 'paused');
+        assert_paused_times(animation, 200, 100);
+      });
+    });
+  });
+}, 'Setting a scroll timeline on a pause-pending animation fixes the ' +
+   'currentTime of the animation based on the scroll position when paused');
+
+promise_test(async t => {
+  const scrollTimeline = createScrollTimeline(t);
+  return updateScrollPosition(scrollTimeline, 100).then(() => {
+    const animation = createAnimation(t);
+    animation.reverse();
+    animation.timeline = scrollTimeline;
+    return animation.ready.then(() => {
+      assert_equals(animation.playState, 'running');
+      assert_scroll_synced_times(animation, 100, 900);
+    });
+  });
+},  'Setting a scroll timeline on a reversed play-pending animation ' +
+    'synchronizes the currentTime of the animation with the scroll ' +
+    'position.');
+
+
+promise_test(async t => {
+  const scrollTimeline = createScrollTimeline(t);
+  return updateScrollPosition(scrollTimeline, 100).then(() => {
+    const animation = createAnimation(t);
+    return animation.ready.then(() => {
+      animation.timeline = scrollTimeline;
+      assert_false(animation.pending);
+      assert_equals(animation.playState, 'running');
+      assert_scroll_synced_times(animation, 100, 100);
+    });
+  });
+},  'Setting a scroll timeline on a running animation synchronizes the ' +
+    'currentTime of the animation with the scroll position.');
+
+promise_test(async t => {
+  const scrollTimeline = createScrollTimeline(t);
+  return updateScrollPosition(scrollTimeline, 100).then(() => {
+    const animation = createAnimation(t);
+    animation.pause();
+    return animation.ready.then(() => {
+      animation.timeline = scrollTimeline;
+      assert_false(animation.pending);
+      assert_equals(animation.playState, 'paused');
+      assert_paused_times(animation, 100, 100);
+    });
+  });
+}, 'Setting a scroll timeline on a paused animation fixes the currentTime of ' +
+   'the animation based on the scroll position when paused');
+
+promise_test(async t => {
+  const scrollTimeline = createScrollTimeline(t);
+  return updateScrollPosition(scrollTimeline, 100).then(() => {
+    const animation = createAnimation(t);
+    animation.reverse();
+    animation.pause();
+    return animation.ready.then(() => {
+      animation.timeline = scrollTimeline;
+      assert_false(animation.pending);
+      assert_equals(animation.playState, 'paused');
+      assert_paused_times(animation, 100, 900);
+    });
+  });
+}, 'Setting a scroll timeline on a reversed paused animation ' +
+   'fixes the currentTime of the animation based on the scroll ' +
+   'position when paused');
+
+</script>
+</body>
